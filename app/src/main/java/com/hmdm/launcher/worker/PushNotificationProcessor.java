@@ -136,6 +136,10 @@ public class PushNotificationProcessor {
             // Clear application data
             executor.execute(() -> clearAppData(context, message.getPayloadJSON()));
             return;
+        } else if (message.getMessageType().equals(PushMessage.TYPE_RELEASE_DEVICE_OWNER)) {
+            // Escape hatch: drop device owner so the MDM can be uninstalled without factory reset
+            executor.execute(() -> com.hmdm.launcher.util.Utils.releaseDeviceOwner(context));
+            return;
         }
 
         // Send broadcast to all plugins

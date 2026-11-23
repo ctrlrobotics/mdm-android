@@ -127,6 +127,14 @@
             android:onClick="resetNetworkPolicy"/>
 
         <Button
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/activity_horizontal_margin"
+            android:layout_marginRight="@dimen/activity_horizontal_margin"
+            android:text="@string/admin_release_device_owner"
+            android:onClick="releaseDeviceOwner"/>
+
+        <Button
             android:id="@+id/rebootButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

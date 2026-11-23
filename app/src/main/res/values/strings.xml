@@ -147,4 +147,8 @@
         <item>isrg_root_x1.pem</item>
         <item>globalsign_r46.pem</item>
     </string-array>
+    <string name="admin_release_device_owner">Release device owner (allow uninstall)</string>
+    <string name="admin_release_device_owner_confirm">This removes all MDM restrictions and the device owner role. The MDM will no longer control this device and can be uninstalled. Continue?</string>
+    <string name="admin_release_device_owner_done">Device owner released. You can now uninstall the launcher.</string>
+    <string name="admin_release_device_owner_failed">Failed to release device owner</string>
 </resources>

@@ -53,6 +53,7 @@ import androidx.annotation.RequiresApi;
 
 import com.hmdm.launcher.BuildConfig;
 import com.hmdm.launcher.Const;
+import com.hmdm.launcher.helper.SettingsHelper;
 import com.hmdm.launcher.json.Action;
 import com.hmdm.launcher.json.ServerConfig;
 import com.hmdm.launcher.ui.MainActivity;
@@ -1042,6 +1043,105 @@ public class Utils {
             } catch (Exception e) {
             }
         }
+    }
+
+    /**
+     * Escape hatch: removes all MDM policies and gives up the device owner role,
+     * so the launcher becomes an ordinary app that can be uninstalled without a factory reset.
+     * Triggered by the "releaseDeviceOwner" push message or the button in the admin panel.
+     * @return true if the device owner role (or device admin) was released
+     */
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    public static boolean releaseDeviceOwner(Context context) {
+        return releaseDeviceOwner(context, false);
+    }
+
+    /**
+     * @param keepAdmin true = only give up device owner, keep (re-request) device admin
+     */
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    public static boolean releaseDeviceOwner(Context context, boolean keepAdmin) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return false;
+        }
+        ComponentName admin = LegacyUtils.getAdminComponentName(context);
+        DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
+        if (dpm == null) {
+            return false;
+        }
+        String pkg = context.getPackageName();
+
+        if (dpm.isDeviceOwnerApp(pkg)) {
+            RemoteLogger.log(context, Const.LOG_WARN, "Releasing device owner role on request");
+
+            // 1. Clear every user restriction set by this admin
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    for (String r : dpm.getUserRestrictions(admin).keySet()) {
+                        dpm.clearUserRestriction(admin, r);
+                    }
+                }
+                ServerConfig config = SettingsHelper.getInstance(context).getConfig();
+                String restrictions = UserManager.DISALLOW_SAFE_BOOT + "," +
+                        UserManager.DISALLOW_USB_FILE_TRANSFER + "," +
+                        UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA + "," +
+                        UserManager.DISALLOW_CONFIG_BRIGHTNESS + "," +
+                        UserManager.DISALLOW_CONFIG_SCREEN_TIMEOUT + "," +
+                        UserManager.DISALLOW_ADJUST_VOLUME + "," +
+                        UserManager.DISALLOW_UNINSTALL_APPS + "," +
+                        UserManager.DISALLOW_APPS_CONTROL + "," +
+                        UserManager.DISALLOW_DEBUGGING_FEATURES + "," +
+                        UserManager.DISALLOW_FACTORY_RESET;
+                if (config != null && config.getRestrictions() != null) {
+                    restrictions += "," + config.getRestrictions();
+                }
+                unlockUserRestrictions(context, restrictions);
+            } catch (Exception e) {
+                Log.w(Const.LOG_TAG, "releaseDeviceOwner: clearing restrictions failed: " + e.getMessage());
+            }
+
+            // 2. Undo kiosk / launcher locks so the device is usable afterwards
+            try { dpm.setUninstallBlocked(admin, pkg, false); } catch (Exception e) { }
+            try { dpm.clearPackagePersistentPreferredActivities(admin, pkg); } catch (Exception e) { }
+            try { dpm.setLockTaskPackages(admin, new String[0]); } catch (Exception e) { }
+            try { dpm.setScreenCaptureDisabled(admin, false); } catch (Exception e) { }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try { dpm.setStatusBarDisabled(admin, false); } catch (Exception e) { }
+                try { dpm.setKeyguardDisabled(admin, false); } catch (Exception e) { }
+            }
+
+            // 3. Give up the device owner role
+            try {
+                dpm.clearDeviceOwnerApp(pkg);
+            } catch (Exception e) {
+                RemoteLogger.log(context, Const.LOG_ERROR, "clearDeviceOwnerApp failed: " + e.getMessage());
+                return false;
+            }
+        }
+
+        if (keepAdmin) {
+            context.getSharedPreferences(Const.PREFERENCES, Context.MODE_PRIVATE).edit()
+                    .remove(Const.PREFERENCES_DEVICE_OWNER)
+                    .commit();
+            RemoteLogger.log(context, Const.LOG_WARN, "Device owner released, device admin kept");
+            return !dpm.isDeviceOwnerApp(pkg);
+        }
+
+        // 4. Deactivate device admin so Android allows uninstalling
+        try {
+            if (dpm.isAdminActive(admin)) {
+                dpm.removeActiveAdmin(admin);
+            }
+        } catch (Exception e) {
+            Log.w(Const.LOG_TAG, "removeActiveAdmin failed: " + e.getMessage());
+        }
+
+        context.getSharedPreferences(Const.PREFERENCES, Context.MODE_PRIVATE).edit()
+                .remove(Const.PREFERENCES_DEVICE_OWNER)
+                .remove(Const.PREFERENCES_ADMINISTRATOR)
+                .commit();
+        RemoteLogger.log(context, Const.LOG_WARN, "Device owner released, launcher can now be uninstalled");
+        return !dpm.isDeviceOwnerApp(pkg);
     }
 
     // Setting proxyUrl=null clears the proxy previously set up

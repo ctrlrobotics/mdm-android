@@ -237,4 +237,24 @@ public class AdminActivity extends BaseActivity {
             }
         }
     }
+
+    public void releaseDeviceOwner(View view) {
+        new android.app.AlertDialog.Builder(this)
+                .setMessage(R.string.admin_release_device_owner_confirm)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    boolean released = Utils.releaseDeviceOwner(AdminActivity.this);
+                    Toast.makeText(AdminActivity.this,
+                            released ? R.string.admin_release_device_owner_done : R.string.admin_release_device_owner_failed,
+                            Toast.LENGTH_LONG).show();
+                    if (released) {
+                        // Open this app's system page so it can be uninstalled right away
+                        Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.parse("package:" + getPackageName()));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        try { startActivity(intent); } catch (Exception e) { }
+                    }
+                })
+                .show();
+    }
 }

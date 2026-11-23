@@ -2989,4 +2989,78 @@ public class MainActivity
                 .replace("CUSTOM3", config.getCustom3() != null ? config.getCustom3() : "");
         FileUtils.writeStringToFile(dstFile, content);
     }
+
+    // ---- Hidden "Remove MDM" menu: tap anywhere on the home screen 10 times quickly ----
+    private static final int SECRET_TAP_COUNT = 10;
+    private static final long SECRET_TAP_MAX_GAP_MS = 1500;
+    private int secretTapCount = 0;
+    private long secretLastTapTime = 0;
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        if (ev.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) {
+            long now = SystemClock.elapsedRealtime();
+            secretTapCount = (now - secretLastTapTime > SECRET_TAP_MAX_GAP_MS) ? 1 : secretTapCount + 1;
+            secretLastTapTime = now;
+            if (secretTapCount >= SECRET_TAP_COUNT) {
+                secretTapCount = 0;
+                showRemoveOwnerButton();
+            }
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+
+    private android.widget.ImageButton removeOwnerButton;
+    private final Runnable hideRemoveOwnerButton = () -> {
+        if (removeOwnerButton != null) removeOwnerButton.setVisibility(View.GONE);
+    };
+
+    // Shows a "remove device owner" button in the top-right corner for 15 seconds
+    private void showRemoveOwnerButton() {
+        if (removeOwnerButton == null) {
+            removeOwnerButton = new android.widget.ImageButton(this);
+            removeOwnerButton.setImageResource(R.drawable.ic_remove_device_owner);
+            removeOwnerButton.setContentDescription("Remove device owner");
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            bg.setColor(0xCC000000);
+            removeOwnerButton.setBackground(bg);
+            int size = (int) (60 * getResources().getDisplayMetrics().density);
+            int pad = (int) (11 * getResources().getDisplayMetrics().density);
+            removeOwnerButton.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            removeOwnerButton.setPadding(pad, pad, pad, pad);
+            int margin = (int) (16 * getResources().getDisplayMetrics().density);
+            android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(size, size, Gravity.TOP | Gravity.END);
+            lp.setMargins(margin, margin, margin, margin);
+            removeOwnerButton.setOnClickListener(v -> confirmRemoveDeviceOwner());
+            ((ViewGroup) findViewById(android.R.id.content)).addView(removeOwnerButton, lp);
+        }
+        removeOwnerButton.setVisibility(View.VISIBLE);
+        removeOwnerButton.bringToFront();
+        removeOwnerButton.removeCallbacks(hideRemoveOwnerButton);
+        removeOwnerButton.postDelayed(hideRemoveOwnerButton, 15000);
+    }
+
+    private void confirmRemoveDeviceOwner() {
+        new AlertDialog.Builder(this)
+                .setTitle("Remove device owner")
+                .setMessage("Remove device owner permission from this MDM? It stays installed as device admin.")
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton("Remove", (dialog, which) -> {
+                    boolean released = Utils.releaseDeviceOwner(MainActivity.this, true);
+                    hideRemoveOwnerButton.run();
+                    Toast.makeText(MainActivity.this,
+                            released ? "Device owner removed" : "Failed to remove device owner",
+                            Toast.LENGTH_LONG).show();
+                    // Android drops device admin together with device owner, so re-activate it right away
+                    if (released) {
+                        removeOwnerButton.postDelayed(() -> {
+                            if (!Utils.checkAdminMode(MainActivity.this)) {
+                                startActivity(new Intent(MainActivity.this, AdminModeRequestActivity.class));
+                            }
+                        }, 1500);
+                    }
+                })
+                .show();
+    }
 }
