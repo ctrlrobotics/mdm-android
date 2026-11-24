@@ -1494,6 +1494,8 @@ public class MainActivity
             }
         });
         exitView.setOnLongClickListener(this);
+        // Access button hidden from the home dock (admin screen is still reachable via the "adminPanel" push)
+        exitView.setVisibility(View.GONE);
     }
 
     private void createInfoButton() {
