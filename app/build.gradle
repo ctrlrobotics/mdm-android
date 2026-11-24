@@ -59,6 +59,8 @@ android {
         // URL of the secondary address of your web panel, called when the primary host is not available.
         // Could be equal to the BASE_URL parameter
         buildConfigField("String", "SECONDARY_BASE_URL", "\"https://mdm.ctrlrobotics.com\"")
+        // AutoXing chassis local API, used to pre-fill the device ID with the robot serial (device.sn)
+        buildConfigField("String", "CHASSIS_URL", "\"http://192.168.25.25:8090\"")
         // Relative path of the web panel on the server. Keep it empty if installed in the root
         buildConfigField("String", "SERVER_PROJECT", "\"\"")
         // This parameter manages how the device ID should be set up at first start

@@ -152,6 +152,28 @@ public class BaseActivity extends AppCompatActivity {
             }
         });
         enterDeviceIdDialog.show();
+
+        // Pre-fill the robot serial from the AutoXing chassis local API when the field is empty
+        if (deviceId == null || deviceId.trim().isEmpty()) {
+            final Dialog dialogForFetch = enterDeviceIdDialog;
+            final DialogEnterDeviceIdBinding bindingForFetch = enterDeviceIdDialogBinding;
+            new Thread(() -> {
+                final String robotId = com.hmdm.launcher.util.ChassisIdHelper.fetchRobotId();
+                if (robotId == null) {
+                    return;
+                }
+                runOnUiThread(() -> {
+                    if (isFinishing() || !dialogForFetch.isShowing()) {
+                        return;
+                    }
+                    // Don't overwrite anything the user already typed
+                    if (bindingForFetch.deviceId.getText().toString().trim().isEmpty()) {
+                        bindingForFetch.deviceId.setText(robotId, false);
+                        bindingForFetch.deviceId.setSelection(robotId.length());
+                    }
+                });
+            }, "RobotIdFetch").start();
+        }
     }
 
     public void showDeviceIdVariants(View view) {
